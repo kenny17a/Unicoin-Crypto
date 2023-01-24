@@ -1,21 +1,24 @@
 package africa.semicolon.unicoin.registration;
 
 import africa.semicolon.unicoin.email.EmailSender;
-import africa.semicolon.unicoin.registration.token.ConfirmationToken;
-import africa.semicolon.unicoin.registration.token.ConfirmationTokenRepository;
+import africa.semicolon.unicoin.registration.dto.ConfirmTokenRequest;
+import africa.semicolon.unicoin.registration.dto.RegistrationRequest;
+import africa.semicolon.unicoin.registration.dto.ResendTokenRequest;
 import africa.semicolon.unicoin.registration.token.ConfirmationTokenService;
 import africa.semicolon.unicoin.user.User;
 import africa.semicolon.unicoin.user.UserRepository;
 import africa.semicolon.unicoin.user.UserRole;
 import africa.semicolon.unicoin.user.UserService;
 import jakarta.mail.MessagingException;
+import lombok.AllArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
+import java.util.UUID;
 
 @Service
+@AllArgsConstructor
 public class RegistrationService {
     @Autowired
     UserRepository userRepository;
@@ -24,8 +27,6 @@ public class RegistrationService {
     @Autowired
     EmailSender emailSender;
 
-    @Autowired
-    ConfirmationTokenRepository confirmationTokenRepository;
     @Autowired
     ConfirmationTokenService confirmationTokenService;
 
@@ -43,19 +44,30 @@ public class RegistrationService {
         emailSender.send(registrationRequest.getEmailAddress(), buildEmail(registrationRequest.getFirstName(), token));
         return token;
     }
+    private void emailSender(String emailAddress, String firstName, String token) throws MessagingException {
+        emailSender.send(emailAddress, buildEmail(firstName, token));
+    }
 
-    public String confirmToken(String confirmationToken){
-        ConfirmationToken token = confirmationTokenRepository.findByToken(confirmationToken).
-                orElseThrow(()-> new IllegalStateException("Token does not exist"));
-        if (token.getExpireAt().isBefore(LocalDateTime.now())){
+    public String resendToken(ResendTokenRequest tokenResendRequest) throws MessagingException {
+        User user = userService.getUserByEmailAddress(tokenResendRequest.getEmailAddress());
+        String token = UUID.randomUUID().toString();
+        emailSender(user.getEmailAddress(), user.getFirstName(), token);
+        return "Resend Successful";
+    }
+
+    public String confirmToken(ConfirmTokenRequest confirmationToken) {
+        var token = confirmationTokenService.getConfirmationToken(confirmationToken.getToken()).orElseThrow(() -> new IllegalStateException("Token does not exist"));
+        if (token.getExpireAt().isBefore(LocalDateTime.now())) {
             throw new IllegalStateException("Token has expired");
         }
-        if (token.getConfirmedAt() != null){
+        if (token.getConfirmedAt() != null) {
             throw new IllegalStateException("Token has been used");
         }
         confirmationTokenService.setConfirmedAt(token.getToken());
+        userService.enableUser(confirmationToken.getEmailAddress());
         return "confirmed";
     }
+
 
     public String buildEmail(String name, String link) {
 
@@ -126,4 +138,5 @@ public class RegistrationService {
                 "\n" +
                 "</div></div>";
     }
+
 }

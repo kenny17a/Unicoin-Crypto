@@ -1,4 +1,4 @@
-package africa.semicolon.unicoin.registration;
+package africa.semicolon.unicoin.registration.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
